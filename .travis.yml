@@ -1,0 +1,24 @@
+language: java
+addons:
+  apt:
+    sources:
+      - avsm
+    packages:
+      - opam
+      - ocaml
+jdk:
+  - oraclejdk8
+before_install:
+- wget http://services.gradle.org/distributions/gradle-4.0.1-bin.zip
+- unzip gradle-4.0.1-bin.zip
+- export GRADLE_HOME=$PWD/gradle-4.0.1
+- export PATH=$GRADLE_HOME/bin:$PATH
+- bash -ex .travis-ci.sh
+- eval $(opam config env)
+cache:
+  directories:
+    - '$HOME/.m2/repository'
+    - '$HOME/.gradle/caches/modules-2'
+    - '$HOME/.opam'
+before_cache:
+  - rm -f "$HOME/.gradle/caches/modules-2/modules-2.lock"

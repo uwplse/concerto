@@ -1,0 +1,70 @@
+handlers:
+  - forwardingAction
+  - simpleAction
+  - loopAction
+  - comparisonAction
+  - faultAction
+  - sourceAction
+  - sinkAction
+  - mixedAction
+  - addAction
+  - stateAction
+filters:
+  - class: meta.framework.filter.InterpreterFilter
+    target: "*"
+    props: 
+      filter-source: |
+        (let [(attr (call-int request "int getRequestData(int)" 4))
+              (target (call-int request "int getTarget()"))
+              (req_attr (call-obj request "meta.framework.ReqAttributes getAttributes()"))
+              (setter (call-obj req_attr "meta.framework.ReqAttributes$Setter getSetter(int)" 3))
+              (_ (call-obj setter "meta.framework.ReqAttributes set(int)" attr))
+              (_ (call-obj dispatcher "void writeDatabase(int)" target))] 0)
+  - class: meta.application.filter.PositiveParams
+    target: "*"
+beans:
+  forwardingAction:
+    class: "meta.application.ForwardingAction"
+  simpleAction:
+    class: "meta.application.SimpleAction"
+  loopAction:
+    class: "meta.application.LoopAction"
+  comparisonAction:
+    class: "meta.application.ComparisonAction"
+    fields:
+      comparandTarget: constInt
+  faultAction:
+    class: "meta.application.FaultAction"
+  sourceAction:
+    class: "meta.application.SourceAction"
+  sinkAction:
+    class: "meta.application.SinkAction"
+  mixedAction:
+    class: "meta.application.MixedAction"
+  addAction:
+    class: "meta.application.IntegerAddService"
+    fields:
+      integerProvider: userPrefProvider
+  constInt:
+    class: "meta.application.ConstantIntegerProvider"
+    fields:
+      constant: 5
+  userPrefProvider:
+    class: "meta.application.UserPreferenceIntegerProvider"
+    fields:
+      databaseOrm: "validating"
+  statistics:
+    class: "meta.framework.db.InMemoryORM"
+    key: 0
+  inMemory:
+    class: "meta.framework.db.InMemoryORM"
+  nonValidating:
+    class: "meta.framework.db.DirectProvider"
+  validating:
+    class: "meta.framework.db.ValidatingDatabase"
+    fields:
+      wrappedProvider: nonValidating
+  stateAction:
+    class: "meta.application.StatefulAction"
+    fields:
+      stateLength: 4

@@ -1,0 +1,114 @@
+apply plugin: 'java'
+apply plugin: 'eclipse'
+apply plugin: 'idea'
+
+repositories {
+  mavenCentral()
+
+  maven {
+	url "https://soot-build.cs.uni-paderborn.de/nexus/repository/soot-snapshot"
+  }
+
+  maven {
+	url "https://soot-build.cs.uni-paderborn.de/nexus/repository/soot-release"
+  }
+}
+
+sourceSets {
+  main {
+	java {
+	  srcDirs 'src'
+	}
+  }
+  test {
+	java {
+	  srcDirs 'test/'
+	}
+  }
+}
+
+eclipse {
+  classpath {
+	downloadSources = true
+	downloadJavadoc = true
+	defaultOutputDir file('build/classes/eclipse')
+	containers "org.eclipse.jdt.launching.JRE_CONTAINER"
+	file {
+	  withXml {
+		it.asNode().children().findAll {
+		  it.attribute("kind") == "con" && it.attribute("path").startsWith("org.eclipse.jdt.launching.JRE_CONTAINER/")
+		}.each { child ->
+		  it.asNode().remove(child)
+		}
+	  }
+	}
+  }
+}
+idea {
+	module {
+     outputDir file('build/classes/eclipse')
+     testOutputDir file('build/classes/eclipse')
+   }
+}
+dependencies {
+	compile group: "ca.mcgill.sable", name: "soot", version: "3.0.0-SNAPSHOT"
+	compile group: 'net.sf.jopt-simple', name: 'jopt-simple', version: '5.0.3'
+	compile group: 'org.testng', name: 'testng', version: '6.8'
+	compile group: 'org.functionaljava', name: 'functionaljava', version: '4.7'
+	compile group: 'org.yaml', name: 'snakeyaml', version: '1.17'
+}
+
+def YAWN_IN = "$rootProject.projectDir/yawn/concerto_in.yml"
+def TEST_YAWN_IN = "$rootProject.projectDir/yawn/concerto_test_in.yml"
+def yawn_generator = "$rootProject.projectDir/yawn/generate_concerto_state.py"
+def yawn_test_generator = "$rootProject.projectDir/yawn/generate_test_concerto_state.py"
+
+test {
+	useTestNG()
+	systemProperty 'concerto.classpath', sourceSets.test.output.classesDirs.join(":")
+	systemProperty 'concerto.inputs', "$rootProject.projectDir/inputs"
+	systemProperty 'concerto.yawn.config', YAWN_IN
+	systemProperty 'concerto.yawn.test-config', TEST_YAWN_IN
+}
+
+task copyDep(type: Copy) {
+  into "$rootProject.buildDir/build-deps"
+  from configurations.runtime
+}
+
+task compileTranspiler(type: Exec, dependsOn: [compileJava, compileTestJava]) {
+	workingDir "$rootProject.projectDir/yawn/filter-lang"
+	executable "ocamlbuild"
+	args(["-use-ocamlfind", "transpile.native"])
+	standardOutput = new ByteArrayOutputStream()
+}
+
+task generateYawn(type: Exec, dependsOn: [compileTranspiler, copyDep]) {
+	def inFile = "$rootProject.projectDir/yawn/config.yml"
+	inputs.files(inFile, yawn_generator)
+	outputs.file(YAWN_IN)
+	workingDir "$rootProject.projectDir"
+	executable "python"
+	args(["$rootProject.projectDir/yawn/generate_concerto_state.py", inFile])
+	standardOutput = new ByteArrayOutputStream()
+	doLast {
+		new File(YAWN_IN).write standardOutput.toString()
+	}
+}
+
+task generateTestYawn(type: Exec, dependsOn: [compileJava, compileTestJava, copyDep]) {
+	def inFile = "$rootProject.projectDir/yawn/config.yml"
+	inputs.files(inFile, yawn_generator, yawn_test_generator)
+	workingDir "$rootProject.projectDir"
+	executable "python"
+	args(["$rootProject.projectDir/yawn/generate_test_concerto_state.py", inFile])
+	standardOutput = new ByteArrayOutputStream()
+	doLast {
+		new File(TEST_YAWN_IN).write standardOutput.toString()
+	}	
+}
+
+test.dependsOn += [generateYawn, generateTestYawn]
+
+task buildAll(dependsOn: [generateYawn, compileTestJava, compileJava]) {
+}
